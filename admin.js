@@ -6,18 +6,25 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const COL = "nodes";
-const PASSWORD = "MWYXRddmFDA8";          // 12 символов
+const PASSWORD = "MWYXRddmFDA8";
 const AUTH_KEY = "salary_admin_auth";
-const CACHE_KEY = "roadmap_nodes_v1";     // общий кэш с роадмэпом (тот же домен)
+const CACHE_KEY = "roadmap_nodes_v1";
+const PROJECT = (db && db.app && db.app.options && db.app.options.projectId) || "?";
 
 let lang = "ru";
-let nodes = [];                            // плоский список
-let view = { t: "home" };                  // {t:'home'} | {t:'node', id}
-let addSel = { root: "", sub: "" };        // выбор в блоке добавления
+let nodes = [];
+let view = { t: "home" };
+let addSel = { root: "", sub: "" };
 let loaded = false;
 let unsub = null;
 
 const $ = (id) => document.getElementById(id);
+
+// ---------- ошибки записи показываем явно ----------
+async function safe(promise, what) {
+  try { await promise; }
+  catch (e) { alert(`Не удалось ${what}.\nПричина: ${e.code || ""} ${e.message}\n\nСкорее всего правила Firestore запрещают запись.`); }
+}
 
 // ---------- авторизация ----------
 function isAuthed() { return sessionStorage.getItem(AUTH_KEY) === "1"; }
@@ -38,14 +45,17 @@ if (isAuthed()) showApp(); else showLogin();
 
 // ---------- данные ----------
 function start() {
-  initialPaint();                          // мгновенно из кэша
+  initialPaint();
   if (unsub) return;
   unsub = onSnapshot(collection(db, COL), (snap) => {
     nodes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     loaded = true;
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify(nodes)); } catch (e) {}
+    try { if (nodes.length) localStorage.setItem(CACHE_KEY, JSON.stringify(nodes)); } catch (e) {}
     render();
-  }, (err) => { loaded = true; $("stage").innerHTML = `<div class="empty">Ошибка базы: ${esc(err.message)}</div>`; });
+  }, (err) => {
+    loaded = true;
+    $("stage").innerHTML = `<div class="empty">Ошибка чтения базы: ${esc(err.message)}<br>Проверь правила Firestore.</div>`;
+  });
 }
 function initialPaint() {
   try { const c = localStorage.getItem(CACHE_KEY); if (c) nodes = JSON.parse(c) || []; } catch (e) {}
@@ -62,7 +72,7 @@ function collectSubtree(id){const out=[id]; childrenOf(id).forEach(c=>out.push(.
 async function addNode(parentId, ru, en){
   const sibs = childrenOf(parentId);
   const order = sibs.length ? Math.max(...sibs.map(s=>s.order||0)) + 1 : 0;
-  await setDoc(doc(db, COL, genId()), { parentId, order, title_ru: ru, title_en: en || ru, done: false });
+  await safe(setDoc(doc(db, COL, genId()), { parentId, order, title_ru: ru, title_en: en || ru, done: false }), "добавить пункт");
 }
 
 // ---------- отрисовка ----------
@@ -71,6 +81,7 @@ function render(){
   setCrumbs();
   if (view.t === "home") renderHome();
   else renderNode(findNode(view.id));
+  let f = $("diag"); if (f) f.textContent = `проект: ${PROJECT} · пунктов в базе: ${loaded ? nodes.length : "…"}`;
 }
 
 function renderHome(){
@@ -80,8 +91,9 @@ function renderHome(){
     <button class="mini" data-newroot="1">+ Новый раздел</button>
   </div>`;
   if (roots.length) h += listHTML(roots);
-  else h += loaded ? `<div class="empty">Пусто — добавьте раздел</div>` : `<div class="empty">Загрузка…</div>`;
+  else h += loaded ? `<div class="empty">База пустая. Открой роадмэп один раз — он зальёт структуру, либо добавь раздел кнопкой выше.</div>` : `<div class="empty">Загрузка…</div>`;
   h += quickAddHTML(roots);
+  h += `<div id="diag" style="margin-top:18px;color:#8b8c95;font-size:12px"></div>`;
   $("stage").innerHTML = h;
 }
 
@@ -101,6 +113,7 @@ function renderNode(node){
     <input class="in" id="newEn" placeholder="Title (EN) — необязательно">
     <button class="btn" data-add="${node.id}">+ Добавить</button>
   </div>`;
+  h += `<div id="diag" style="margin-top:18px;color:#8b8c95;font-size:12px"></div>`;
   $("stage").innerHTML = h;
 }
 
@@ -122,7 +135,6 @@ function rowHTML(n,i,total){
     <button class="mini danger" data-del="${n.id}">✕</button>
   </div>`;
 }
-
 function quickAddHTML(roots){
   if (!roots.length) return "";
   const rootOpts = `<option value="">— выберите раздел —</option>` +
@@ -143,7 +155,6 @@ function subOptionsHTML(rootId){
   opts += subs.map(s=>`<option value="${s.id}" ${addSel.sub===s.id?"selected":""}>${esc(title(s))}</option>`).join("");
   return opts;
 }
-
 function setCrumbs(){
   let path = [];
   if (view.t === "node") { let c = findNode(view.id); while (c) { path.unshift(c); c = c.parentId ? findNode(c.parentId) : null; } }
@@ -162,7 +173,7 @@ document.addEventListener("click", async (e) => {
 
   if (e.target.closest("[data-home]")) { view = { t:"home" }; render(); return; }
 
-  if (e.target.closest("[data-back]")) {                 // Назад — на уровень вверх
+  if (e.target.closest("[data-back]")) {
     const cur = view.t === "node" ? findNode(view.id) : null;
     view = (cur && cur.parentId) ? { t:"node", id:cur.parentId } : { t:"home" };
     render(); return;
@@ -171,29 +182,26 @@ document.addEventListener("click", async (e) => {
   const op = e.target.closest("[data-open]");
   if (op) { view = { t:"node", id: op.getAttribute("data-open") }; render(); return; }
 
-  if (e.target.closest("[data-newroot]")) {              // новый раздел
+  if (e.target.closest("[data-newroot]")) {
     const ru = prompt("Название раздела (RU):",""); if (ru===null || !ru.trim()) return;
     const en = prompt("Title (EN):", ru); if (en===null) return;
-    await addNode(null, ru.trim(), en.trim());
-    return;
+    await addNode(null, ru.trim(), en.trim()); return;
   }
 
-  const qa = e.target.closest("[data-quickadd]");        // добавление через выбор
+  const qa = e.target.closest("[data-quickadd]");
   if (qa) {
     if (!addSel.root) { alert("Выберите раздел"); return; }
     const parentId = addSel.sub || addSel.root;
     const ru = ($("qRu").value||"").trim(), en = ($("qEn").value||"").trim();
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(parentId, ru, en);                     // выбор раздела/подраздела сохраняется
-    return;
+    await addNode(parentId, ru, en); return;
   }
 
-  const ad = e.target.closest("[data-add]");             // добавление внутри раздела
+  const ad = e.target.closest("[data-add]");
   if (ad) {
     const ru = ($("newRu").value||"").trim(), en = ($("newEn").value||"").trim();
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(ad.getAttribute("data-add"), ru, en);
-    return;
+    await addNode(ad.getAttribute("data-add"), ru, en); return;
   }
 
   const rn = e.target.closest("[data-rename]");
@@ -201,7 +209,7 @@ document.addEventListener("click", async (e) => {
     const n = findNode(rn.getAttribute("data-rename")); if (!n) return;
     const ru = prompt("Название (RU):", n.title_ru||""); if (ru === null) return;
     const en = prompt("Title (EN):", n.title_en||ru); if (en === null) return;
-    await updateDoc(doc(db, COL, n.id), { title_ru: ru.trim(), title_en: (en.trim()||ru.trim()) });
+    await safe(updateDoc(doc(db, COL, n.id), { title_ru: ru.trim(), title_en: (en.trim()||ru.trim()) }), "переименовать");
     return;
   }
 
@@ -212,7 +220,7 @@ document.addEventListener("click", async (e) => {
     if (!confirm(`Удалить «${title(n)}»${ids.length>1?` и вложенные (${ids.length} шт.)`:""}? Необратимо.`)) return;
     const batch = writeBatch(db);
     ids.forEach(id => batch.delete(doc(db, COL, id)));
-    await batch.commit();
+    await safe(batch.commit(), "удалить");
     if (view.t === "node" && ids.includes(view.id)) view = n.parentId ? { t:"node", id:n.parentId } : { t:"home" };
     return;
   }
@@ -227,18 +235,17 @@ document.addEventListener("click", async (e) => {
     const a = sibs[idx], b = sibs[j], batch = writeBatch(db);
     batch.update(doc(db, COL, a.id), { order: b.order||0 });
     batch.update(doc(db, COL, b.id), { order: a.order||0 });
-    await batch.commit();
+    await safe(batch.commit(), "переставить");
     return;
   }
 });
 
 document.addEventListener("change", async (e) => {
-  if (e.target.id === "selRoot") {                       // каскад: раздел → подраздел
+  if (e.target.id === "selRoot") {
     addSel.root = e.target.value; addSel.sub = "";
-    const sub = $("selSub"); if (sub) sub.innerHTML = subOptionsHTML(addSel.root);
-    return;
+    const sub = $("selSub"); if (sub) sub.innerHTML = subOptionsHTML(addSel.root); return;
   }
   if (e.target.id === "selSub") { addSel.sub = e.target.value; return; }
   const c = e.target.closest("[data-done]");
-  if (c) await updateDoc(doc(db, COL, c.getAttribute("data-done")), { done: c.checked });
+  if (c) await safe(updateDoc(doc(db, COL, c.getAttribute("data-done")), { done: c.checked }), "отметить");
 });
