@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salary Admin</title>
+<style>
+  :root{ --pink:#E8005A; --pink2:#ff4d92; --bg:#0e0e10; --panel:#16161a;
+         --line:#2a2a31; --muted:#8b8c95; --text:#f2f2f2; --success:#34d399; --danger:#ff5470; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:Inter,system-ui,Segoe UI,Roboto,sans-serif}
+  .btn{border:1px solid var(--pink);background:var(--pink);color:#fff;border-radius:10px;
+       padding:9px 14px;font-size:14px;cursor:pointer}
+  .btn.ghost{background:transparent;color:var(--text);border-color:var(--line)}
+  .btn.danger{background:transparent;border-color:var(--danger);color:var(--danger)}
+  .btn:disabled{opacity:.4;cursor:default}
+  .in{width:100%;padding:11px 12px;margin:6px 0;border-radius:10px;border:1px solid var(--line);
+      background:#101015;color:var(--text);font-size:14px}
+
+  /* login */
+  #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{width:100%;max-width:320px;background:var(--panel);border:1px solid var(--line);
+        border-radius:16px;padding:22px}
+  .card h1{margin:0 0 4px;font-size:18px}
+  .card p{margin:0 0 14px;color:var(--muted);font-size:13px}
+  #loginErr{color:var(--danger);font-size:13px;min-height:18px;margin-top:4px}
+
+  /* app */
+  header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .brand{font-weight:700;font-size:16px;color:var(--pink)}
+  .langs{margin-left:auto;display:flex;gap:6px}
+  .langbtn{border:1px solid var(--line);background:transparent;color:var(--muted);
+           border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer}
+  .langbtn.active{border-color:var(--pink);color:var(--text)}
+  .crumbs{padding:12px 18px;color:var(--muted);font-size:13px;border-bottom:1px solid var(--line)}
+  .crumb{cursor:pointer}
+  .crumb:hover{color:var(--text)}
+  .crumb.cur{color:var(--text);cursor:default}
+  .stage{padding:18px;max-width:760px;margin:0 auto}
+
+  .nodebar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .nodebar .here{font-weight:600;font-size:16px;margin-right:auto}
+
+  .row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);
+       border-radius:12px;margin-bottom:8px;background:var(--panel)}
+  .row.done .name{color:var(--muted);text-decoration:line-through}
+  .row .name{flex:1;cursor:pointer}
+  .row .name:hover{color:var(--pink2)}
+  .ord{display:flex;gap:4px}
+  .mini{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:8px;
+        padding:5px 8px;font-size:13px;cursor:pointer}
+  .mini.ghost{color:var(--muted)} .mini.danger{color:var(--danger);border-color:var(--danger)}
+  .mini:disabled{opacity:.35;cursor:default}
+  .chk input{width:18px;height:18px;accent-color:var(--success)}
+
+  .empty{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--line);border-radius:12px}
+  .addbox{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .addtitle{font-size:13px;color:var(--muted);margin-bottom:6px}
+</style>
+</head>
+<body>
+  <div id="login">
+    <div class="card">
+      <h1>Salary Admin</h1>
+      <p>Вход в админку</p>
+      <input class="in" id="user" placeholder="Логин" value="Admin" autocomplete="off">
+      <input class="in" id="pass" type="password" placeholder="Пароль" autocomplete="off">
+      <button class="btn" id="loginBtn" style="width:100%;margin-top:6px">Войти</button>
+      <div id="loginErr"></div>
+    </div>
+  </div>
+
+  <div id="app" style="display:none">
+    <header>
+      <div class="brand">Salary Admin</div>
+      <div class="langs">
+        <button data-lang="ru" class="langbtn active">RU</button>
+        <button data-lang="en" class="langbtn">EN</button>
+      </div>
+      <button id="logoutBtn" class="btn ghost">Выйти</button>
+    </header>
+    <div id="crumbs" class="crumbs"></div>
+    <main id="stage" class="stage"></main>
+  </div>
+
+  <script type="module" src="./admin.js"></script>
+</body>
+</html>
