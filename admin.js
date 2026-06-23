@@ -78,10 +78,17 @@ function prioSelectHTML(n){
     ${opt("","— приоритет —")}${opt("highest","Highest")}${opt("high","High")}${opt("medium","Medium")}${opt("low","Low")}</select>`;
 }
 
-async function addNode(parentId, ru, en){
+async function addNode(parentId, ru, en, priority){
   const sibs = childrenOf(parentId);
   const order = sibs.length ? Math.max(...sibs.map(s=>s.order||0)) + 1 : 0;
-  await safe(setDoc(doc(db, COL, genId()), { parentId, order, title_ru: ru, title_en: en || ru, done: false }), "добавить пункт");
+  await safe(setDoc(doc(db, COL, genId()), { parentId, order, title_ru: ru, title_en: en || ru, done: false, priority: priority || "" }), "добавить пункт");
+}
+
+// варианты приоритета для форм добавления
+function prioOptionsHTML(sel){
+  const cur = sel || "";
+  const opt = (v,t) => `<option value="${v}" ${cur===v?"selected":""}>${t}</option>`;
+  return opt("","Приоритет — не задан")+opt("highest","Highest")+opt("high","High")+opt("medium","Medium")+opt("low","Low");
 }
 
 // ---------- отрисовка ----------
@@ -120,6 +127,7 @@ function renderNode(node){
     <div class="addtitle">Добавить пункт сюда</div>
     <input class="in" id="newRu" placeholder="Название (RU)">
     <input class="in" id="newEn" placeholder="Title (EN) — необязательно">
+    <select class="in" id="newPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-add="${node.id}">+ Добавить</button>
   </div>`;
   h += `<div id="diag" style="margin-top:18px;color:#8b8c95;font-size:12px"></div>`;
@@ -156,6 +164,7 @@ function quickAddHTML(roots){
     <select class="in" id="selSub">${subOptionsHTML(addSel.root)}</select>
     <input class="in" id="qRu" placeholder="Название (RU)">
     <input class="in" id="qEn" placeholder="Title (EN) — необязательно">
+    <select class="in" id="qPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-quickadd="1">+ Добавить</button>
   </div>`;
 }
@@ -204,15 +213,17 @@ document.addEventListener("click", async (e) => {
     if (!addSel.root) { alert("Выберите раздел"); return; }
     const parentId = addSel.sub || addSel.root;
     const ru = ($("qRu").value||"").trim(), en = ($("qEn").value||"").trim();
+    const prio = ($("qPrio") && $("qPrio").value) || "";
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(parentId, ru, en); return;
+    await addNode(parentId, ru, en, prio); return;
   }
 
   const ad = e.target.closest("[data-add]");
   if (ad) {
     const ru = ($("newRu").value||"").trim(), en = ($("newEn").value||"").trim();
+    const prio = ($("newPrio") && $("newPrio").value) || "";
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(ad.getAttribute("data-add"), ru, en); return;
+    await addNode(ad.getAttribute("data-add"), ru, en, prio); return;
   }
 
   const rn = e.target.closest("[data-rename]");
