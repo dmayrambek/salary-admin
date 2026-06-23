@@ -127,9 +127,9 @@ function renderNode(node){
   h += `<div class="addbox">
     <div class="addtitle">Добавить пункт сюда</div>
     <input class="in" id="newRu" placeholder="Название (RU)">
-    <input class="in" id="newEn" placeholder="Title (EN) — необязательно">
-    <input class="in" id="newDescRu" placeholder="Описание (RU) — необязательно">
-    <input class="in" id="newDescEn" placeholder="Description (EN) — необязательно">
+    <input class="in" id="newEn" placeholder="Title (EN)">
+    <input class="in" id="newDescRu" placeholder="Описание (RU)">
+    <input class="in" id="newDescEn" placeholder="Description (EN)">
     <select class="in" id="newPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-add="${node.id}">+ Добавить</button>
   </div>`;
@@ -166,9 +166,9 @@ function quickAddHTML(roots){
     <select class="in" id="selRoot">${rootOpts}</select>
     <select class="in" id="selSub">${subOptionsHTML(addSel.root)}</select>
     <input class="in" id="qRu" placeholder="Название (RU)">
-    <input class="in" id="qEn" placeholder="Title (EN) — необязательно">
-    <input class="in" id="qDescRu" placeholder="Описание (RU) — необязательно">
-    <input class="in" id="qDescEn" placeholder="Description (EN) — необязательно">
+    <input class="in" id="qEn" placeholder="Title (EN)">
+    <input class="in" id="qDescRu" placeholder="Описание (RU)">
+    <input class="in" id="qDescEn" placeholder="Description (EN)">
     <select class="in" id="qPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-quickadd="1">+ Добавить</button>
   </div>`;
