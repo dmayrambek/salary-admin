@@ -69,6 +69,15 @@ function childrenOf(id){return nodes.filter(n => (n.parentId||null) === (id||nul
 function genId(){return "n_" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);}
 function collectSubtree(id){const out=[id]; childrenOf(id).forEach(c=>out.push(...collectSubtree(c.id))); return out;}
 
+// ---------- приоритет (только у задач-листьев) ----------
+function prioSelectHTML(n){
+  const cur = n.priority || "";
+  const opt = (v,t) => `<option value="${v}" ${cur===v?"selected":""}>${t}</option>`;
+  return `<select class="prio-sel" data-prio="${n.id}" title="Приоритет"
+    style="background:#101015;color:#f2f2f2;border:1px solid #2a2a31;border-radius:8px;padding:5px 8px;font-size:12px;cursor:pointer">
+    ${opt("","— приоритет —")}${opt("highest","Highest")}${opt("high","High")}${opt("medium","Medium")}${opt("low","Low")}</select>`;
+}
+
 async function addNode(parentId, ru, en){
   const sibs = childrenOf(parentId);
   const order = sibs.length ? Math.max(...sibs.map(s=>s.order||0)) + 1 : 0;
@@ -123,9 +132,11 @@ function listHTML(items){
 }
 function rowHTML(n,i,total){
   const done = !!n.done;
+  const isLeaf = childrenOf(n.id).length === 0;   // приоритет — только у задач без вложений
   return `<div class="row${done?" done":""}">
     <label class="chk"><input type="checkbox" data-done="${n.id}" ${done?"checked":""}></label>
     <span class="name" data-open="${n.id}">${esc(title(n))}</span>
+    ${isLeaf ? prioSelectHTML(n) : ""}
     <span class="ord">
       <button class="mini" data-up="${n.id}" ${i===0?"disabled":""}>↑</button>
       <button class="mini" data-down="${n.id}" ${i===total-1?"disabled":""}>↓</button>
@@ -246,6 +257,11 @@ document.addEventListener("change", async (e) => {
     const sub = $("selSub"); if (sub) sub.innerHTML = subOptionsHTML(addSel.root); return;
   }
   if (e.target.id === "selSub") { addSel.sub = e.target.value; return; }
+
+  // приоритет задачи
+  const ps = e.target.closest("[data-prio]");
+  if (ps) { await safe(updateDoc(doc(db, COL, ps.getAttribute("data-prio")), { priority: ps.value }), "сменить приоритет"); return; }
+
   const c = e.target.closest("[data-done]");
   if (c) await safe(updateDoc(doc(db, COL, c.getAttribute("data-done")), { done: c.checked }), "отметить");
 });
