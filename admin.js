@@ -78,10 +78,10 @@ function prioSelectHTML(n){
     ${opt("","— приоритет —")}${opt("highest","Highest")}${opt("high","High")}${opt("medium","Medium")}${opt("low","Low")}</select>`;
 }
 
-async function addNode(parentId, ru, en, priority){
+async function addNode(parentId, ru, en, priority, description){
   const sibs = childrenOf(parentId);
   const order = sibs.length ? Math.max(...sibs.map(s=>s.order||0)) + 1 : 0;
-  await safe(setDoc(doc(db, COL, genId()), { parentId, order, title_ru: ru, title_en: en || ru, done: false, priority: priority || "" }), "добавить пункт");
+  await safe(setDoc(doc(db, COL, genId()), { parentId, order, title_ru: ru, title_en: en || ru, done: false, priority: priority || "", description: description || "" }), "добавить пункт");
 }
 
 // варианты приоритета для форм добавления
@@ -127,6 +127,7 @@ function renderNode(node){
     <div class="addtitle">Добавить пункт сюда</div>
     <input class="in" id="newRu" placeholder="Название (RU)">
     <input class="in" id="newEn" placeholder="Title (EN) — необязательно">
+    <input class="in" id="newDesc" placeholder="Описание (необязательно)">
     <select class="in" id="newPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-add="${node.id}">+ Добавить</button>
   </div>`;
@@ -164,6 +165,7 @@ function quickAddHTML(roots){
     <select class="in" id="selSub">${subOptionsHTML(addSel.root)}</select>
     <input class="in" id="qRu" placeholder="Название (RU)">
     <input class="in" id="qEn" placeholder="Title (EN) — необязательно">
+    <input class="in" id="qDesc" placeholder="Описание (необязательно)">
     <select class="in" id="qPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-quickadd="1">+ Добавить</button>
   </div>`;
@@ -214,16 +216,18 @@ document.addEventListener("click", async (e) => {
     const parentId = addSel.sub || addSel.root;
     const ru = ($("qRu").value||"").trim(), en = ($("qEn").value||"").trim();
     const prio = ($("qPrio") && $("qPrio").value) || "";
+    const desc = ($("qDesc") && $("qDesc").value || "").trim();
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(parentId, ru, en, prio); return;
+    await addNode(parentId, ru, en, prio, desc); return;
   }
 
   const ad = e.target.closest("[data-add]");
   if (ad) {
     const ru = ($("newRu").value||"").trim(), en = ($("newEn").value||"").trim();
     const prio = ($("newPrio") && $("newPrio").value) || "";
+    const desc = ($("newDesc") && $("newDesc").value || "").trim();
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(ad.getAttribute("data-add"), ru, en, prio); return;
+    await addNode(ad.getAttribute("data-add"), ru, en, prio, desc); return;
   }
 
   const rn = e.target.closest("[data-rename]");
@@ -231,7 +235,8 @@ document.addEventListener("click", async (e) => {
     const n = findNode(rn.getAttribute("data-rename")); if (!n) return;
     const ru = prompt("Название (RU):", n.title_ru||""); if (ru === null) return;
     const en = prompt("Title (EN):", n.title_en||ru); if (en === null) return;
-    await safe(updateDoc(doc(db, COL, n.id), { title_ru: ru.trim(), title_en: (en.trim()||ru.trim()) }), "переименовать");
+    const ds = prompt("Описание:", n.description||""); if (ds === null) return;
+    await safe(updateDoc(doc(db, COL, n.id), { title_ru: ru.trim(), title_en: (en.trim()||ru.trim()), description: ds.trim() }), "переименовать");
     return;
   }
 
