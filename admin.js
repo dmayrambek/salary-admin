@@ -4,19 +4,6 @@ import { db } from "./firebase-config.js";
 import {
   collection, onSnapshot, doc, setDoc, updateDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-// ---------- вложения: ссылка и файл (оба как название + ссылка) ----------
-async function setLink(id){
-  const n = findNode(id); if (!n) return;
-  const t = prompt("Название ссылки (как показать):", n.link_title || ""); if (t === null) return;
-  const u = prompt("URL ссылки (пусто — удалить):", n.link_url || ""); if (u === null) return;
-  await safe(updateDoc(doc(db, COL, id), { link_title: t.trim(), link_url: u.trim() }), "сохранить ссылку");
-}
-async function setFile(id){
-  const n = findNode(id); if (!n) return;
-  const t = prompt("Название файла (как показать):", n.file_title || ""); if (t === null) return;
-  const u = prompt("Ссылка на файл (URL PDF; пусто — удалить):", n.file_url || ""); if (u === null) return;
-  await safe(updateDoc(doc(db, COL, id), { file_title: t.trim(), file_url: u.trim() }), "сохранить файл");
-}
 
 const COL = "nodes";
 const PASSWORD = "MWYXRddmFDA8";
@@ -91,11 +78,12 @@ function prioSelectHTML(n){
     ${opt("","— приоритет —")}${opt("highest","Highest")}${opt("high","High")}${opt("medium","Medium")}${opt("low","Low")}</select>`;
 }
 
-async function addNode(parentId, ru, en, priority, dru, den){
+async function addNode(parentId, ru, en, priority, dru, den, lt, lu, ft, fu){
   const sibs = childrenOf(parentId);
   const order = sibs.length ? Math.max(...sibs.map(s=>s.order||0)) + 1 : 0;
   await safe(setDoc(doc(db, COL, genId()), { parentId, order, title_ru: ru, title_en: en || ru, done: false,
-    priority: priority || "", description_ru: dru || "", description_en: den || "" }), "добавить пункт");
+    priority: priority || "", description_ru: dru || "", description_en: den || "",
+    link_title: lt || "", link_url: lu || "", file_title: ft || "", file_url: fu || "" }), "добавить пункт");
 }
 
 // варианты приоритета для форм добавления
@@ -143,6 +131,10 @@ function renderNode(node){
     <input class="in" id="newEn" placeholder="Title (EN) — необязательно">
     <input class="in" id="newDescRu" placeholder="Описание (RU) — необязательно">
     <input class="in" id="newDescEn" placeholder="Description (EN) — необязательно">
+    <input class="in" id="newLinkT" placeholder="Ссылка — название (необязательно)">
+    <input class="in" id="newLinkU" placeholder="Ссылка — URL (необязательно)">
+    <input class="in" id="newFileT" placeholder="Файл — название кнопки (необязательно)">
+    <input class="in" id="newFileU" placeholder="Файл — ссылка на PDF (необязательно)">
     <select class="in" id="newPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-add="${node.id}">+ Добавить</button>
   </div>`;
@@ -166,9 +158,7 @@ function rowHTML(n,i,total){
       <button class="mini" data-down="${n.id}" ${i===total-1?"disabled":""}>↓</button>
     </span>
     <button class="mini" data-open="${n.id}">Открыть →</button>
-    <button class="mini" data-link="${n.id}" title="Ссылка" style="${n.link_url?'color:#E8005A;border-color:#E8005A':''}">🔗</button>
-    <button class="mini" data-file="${n.id}" title="Файл" style="${n.file_url?'color:#E8005A;border-color:#E8005A':''}">📎</button>
-    <button class="mini ghost" data-rename="${n.id}">✎</button>
+    <button class="mini ghost" data-rename="${n.id}" title="Изменить (название, описание, ссылка, файл)"${(n.link_url||n.file_url)?' style="color:#E8005A;border-color:#E8005A"':''}>✎</button>
     <button class="mini danger" data-del="${n.id}">✕</button>
   </div>`;
 }
@@ -184,6 +174,10 @@ function quickAddHTML(roots){
     <input class="in" id="qEn" placeholder="Title (EN) — необязательно">
     <input class="in" id="qDescRu" placeholder="Описание (RU) — необязательно">
     <input class="in" id="qDescEn" placeholder="Description (EN) — необязательно">
+    <input class="in" id="qLinkT" placeholder="Ссылка — название (необязательно)">
+    <input class="in" id="qLinkU" placeholder="Ссылка — URL (необязательно)">
+    <input class="in" id="qFileT" placeholder="Файл — название кнопки (необязательно)">
+    <input class="in" id="qFileU" placeholder="Файл — ссылка на PDF (необязательно)">
     <select class="in" id="qPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-quickadd="1">+ Добавить</button>
   </div>`;
@@ -236,8 +230,10 @@ document.addEventListener("click", async (e) => {
     const prio = ($("qPrio") && $("qPrio").value) || "";
     const dru = ($("qDescRu") && $("qDescRu").value || "").trim();
     const den = ($("qDescEn") && $("qDescEn").value || "").trim();
+    const lt = ($("qLinkT") && $("qLinkT").value || "").trim(), lu = ($("qLinkU") && $("qLinkU").value || "").trim();
+    const ft = ($("qFileT") && $("qFileT").value || "").trim(), fu = ($("qFileU") && $("qFileU").value || "").trim();
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(parentId, ru, en, prio, dru, den); return;
+    await addNode(parentId, ru, en, prio, dru, den, lt, lu, ft, fu); return;
   }
 
   const ad = e.target.closest("[data-add]");
@@ -246,24 +242,29 @@ document.addEventListener("click", async (e) => {
     const prio = ($("newPrio") && $("newPrio").value) || "";
     const dru = ($("newDescRu") && $("newDescRu").value || "").trim();
     const den = ($("newDescEn") && $("newDescEn").value || "").trim();
+    const lt = ($("newLinkT") && $("newLinkT").value || "").trim(), lu = ($("newLinkU") && $("newLinkU").value || "").trim();
+    const ft = ($("newFileT") && $("newFileT").value || "").trim(), fu = ($("newFileU") && $("newFileU").value || "").trim();
     if (!ru) { alert("Введите название (RU)"); return; }
-    await addNode(ad.getAttribute("data-add"), ru, en, prio, dru, den); return;
+    await addNode(ad.getAttribute("data-add"), ru, en, prio, dru, den, lt, lu, ft, fu); return;
   }
-
-  const lk = e.target.closest("[data-link]");
-  if (lk) { setLink(lk.getAttribute("data-link")); return; }
-  const fl = e.target.closest("[data-file]");
-  if (fl) { setFile(fl.getAttribute("data-file")); return; }
 
   const rn = e.target.closest("[data-rename]");
   if (rn) {
     const n = findNode(rn.getAttribute("data-rename")); if (!n) return;
+    const keep = (v, cur) => v === null ? cur : v.trim();   // Отмена = оставить как было
     const ru = prompt("Название (RU):", n.title_ru||""); if (ru === null) return;
-    const en = prompt("Title (EN):", n.title_en||ru); if (en === null) return;
-    const dru = prompt("Описание (RU):", n.description_ru||n.description||""); if (dru === null) return;
-    const den = prompt("Description (EN):", n.description_en||""); if (den === null) return;
-    await safe(updateDoc(doc(db, COL, n.id), { title_ru: ru.trim(), title_en: (en.trim()||ru.trim()),
-      description_ru: dru.trim(), description_en: den.trim() }), "переименовать");
+    const en  = keep(prompt("Title (EN):", n.title_en||""), n.title_en||"");
+    const dru = keep(prompt("Описание (RU) — необязательно:", n.description_ru||n.description||""), n.description_ru||"");
+    const den = keep(prompt("Description (EN) — необязательно:", n.description_en||""), n.description_en||"");
+    const lt  = keep(prompt("Ссылка — название (необязательно):", n.link_title||""), n.link_title||"");
+    const lu  = keep(prompt("Ссылка — URL (пусто — нет):", n.link_url||""), n.link_url||"");
+    const ft  = keep(prompt("Файл — название кнопки (необязательно):", n.file_title||""), n.file_title||"");
+    const fu  = keep(prompt("Файл — ссылка на PDF (пусто — нет):", n.file_url||""), n.file_url||"");
+    await safe(updateDoc(doc(db, COL, n.id), {
+      title_ru: ru.trim(), title_en: (en || ru.trim()),
+      description_ru: dru, description_en: den,
+      link_title: lt, link_url: lu, file_title: ft, file_url: fu
+    }), "сохранить");
     return;
   }
 
