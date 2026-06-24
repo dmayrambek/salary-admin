@@ -4,6 +4,32 @@ import { db } from "./firebase-config.js";
 import {
   collection, onSnapshot, doc, setDoc, updateDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+const storage = getStorage();
+
+// ---------- вложения: ссылка (название+URL) и файл (загрузка) ----------
+async function setLink(id){
+  const n = findNode(id); if (!n) return;
+  const t = prompt("Название ссылки (как показать):", n.link_title || ""); if (t === null) return;
+  const u = prompt("URL ссылки (пусто — удалить):", n.link_url || ""); if (u === null) return;
+  await safe(updateDoc(doc(db, COL, id), { link_title: t.trim(), link_url: u.trim() }), "сохранить ссылку");
+}
+function pickFile(id){
+  const inp = document.createElement("input"); inp.type = "file";
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    try {
+      const r = ref(storage, `files/${id}/${Date.now()}_${f.name}`);
+      await uploadBytes(r, f);
+      const url = await getDownloadURL(r);
+      await safe(updateDoc(doc(db, COL, id), { file_url: url, file_title: f.name }), "сохранить файл");
+      alert("Файл загружен: " + f.name);
+    } catch (e) {
+      alert("Не удалось загрузить файл.\n" + (e.code || "") + " " + e.message + "\n\nПроверь, включён ли Firebase Storage и его правила.");
+    }
+  };
+  inp.click();
+}
 
 const COL = "nodes";
 const PASSWORD = "MWYXRddmFDA8";
@@ -127,9 +153,9 @@ function renderNode(node){
   h += `<div class="addbox">
     <div class="addtitle">Добавить пункт сюда</div>
     <input class="in" id="newRu" placeholder="Название (RU)">
-    <input class="in" id="newEn" placeholder="Title (EN)">
-    <input class="in" id="newDescRu" placeholder="Описание (RU)">
-    <input class="in" id="newDescEn" placeholder="Description (EN)">
+    <input class="in" id="newEn" placeholder="Title (EN) — необязательно">
+    <input class="in" id="newDescRu" placeholder="Описание (RU) — необязательно">
+    <input class="in" id="newDescEn" placeholder="Description (EN) — необязательно">
     <select class="in" id="newPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-add="${node.id}">+ Добавить</button>
   </div>`;
@@ -153,6 +179,8 @@ function rowHTML(n,i,total){
       <button class="mini" data-down="${n.id}" ${i===total-1?"disabled":""}>↓</button>
     </span>
     <button class="mini" data-open="${n.id}">Открыть →</button>
+    <button class="mini" data-link="${n.id}" title="Ссылка" style="${n.link_url?'color:#E8005A;border-color:#E8005A':''}">🔗</button>
+    <button class="mini" data-file="${n.id}" title="Файл" style="${n.file_url?'color:#E8005A;border-color:#E8005A':''}">📎</button>
     <button class="mini ghost" data-rename="${n.id}">✎</button>
     <button class="mini danger" data-del="${n.id}">✕</button>
   </div>`;
@@ -166,9 +194,9 @@ function quickAddHTML(roots){
     <select class="in" id="selRoot">${rootOpts}</select>
     <select class="in" id="selSub">${subOptionsHTML(addSel.root)}</select>
     <input class="in" id="qRu" placeholder="Название (RU)">
-    <input class="in" id="qEn" placeholder="Title (EN)">
-    <input class="in" id="qDescRu" placeholder="Описание (RU)">
-    <input class="in" id="qDescEn" placeholder="Description (EN)">
+    <input class="in" id="qEn" placeholder="Title (EN) — необязательно">
+    <input class="in" id="qDescRu" placeholder="Описание (RU) — необязательно">
+    <input class="in" id="qDescEn" placeholder="Description (EN) — необязательно">
     <select class="in" id="qPrio">${prioOptionsHTML("")}</select>
     <button class="btn" data-quickadd="1">+ Добавить</button>
   </div>`;
@@ -234,6 +262,11 @@ document.addEventListener("click", async (e) => {
     if (!ru) { alert("Введите название (RU)"); return; }
     await addNode(ad.getAttribute("data-add"), ru, en, prio, dru, den); return;
   }
+
+  const lk = e.target.closest("[data-link]");
+  if (lk) { setLink(lk.getAttribute("data-link")); return; }
+  const fl = e.target.closest("[data-file]");
+  if (fl) { pickFile(fl.getAttribute("data-file")); return; }
 
   const rn = e.target.closest("[data-rename]");
   if (rn) {
