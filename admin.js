@@ -4,31 +4,18 @@ import { db } from "./firebase-config.js";
 import {
   collection, onSnapshot, doc, setDoc, updateDoc, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-const storage = getStorage();
-
-// ---------- вложения: ссылка (название+URL) и файл (загрузка) ----------
+// ---------- вложения: ссылка и файл (оба как название + ссылка) ----------
 async function setLink(id){
   const n = findNode(id); if (!n) return;
   const t = prompt("Название ссылки (как показать):", n.link_title || ""); if (t === null) return;
   const u = prompt("URL ссылки (пусто — удалить):", n.link_url || ""); if (u === null) return;
   await safe(updateDoc(doc(db, COL, id), { link_title: t.trim(), link_url: u.trim() }), "сохранить ссылку");
 }
-function pickFile(id){
-  const inp = document.createElement("input"); inp.type = "file";
-  inp.onchange = async () => {
-    const f = inp.files && inp.files[0]; if (!f) return;
-    try {
-      const r = ref(storage, `files/${id}/${Date.now()}_${f.name}`);
-      await uploadBytes(r, f);
-      const url = await getDownloadURL(r);
-      await safe(updateDoc(doc(db, COL, id), { file_url: url, file_title: f.name }), "сохранить файл");
-      alert("Файл загружен: " + f.name);
-    } catch (e) {
-      alert("Не удалось загрузить файл.\n" + (e.code || "") + " " + e.message + "\n\nПроверь, включён ли Firebase Storage и его правила.");
-    }
-  };
-  inp.click();
+async function setFile(id){
+  const n = findNode(id); if (!n) return;
+  const t = prompt("Название файла (как показать):", n.file_title || ""); if (t === null) return;
+  const u = prompt("Ссылка на файл (URL PDF; пусто — удалить):", n.file_url || ""); if (u === null) return;
+  await safe(updateDoc(doc(db, COL, id), { file_title: t.trim(), file_url: u.trim() }), "сохранить файл");
 }
 
 const COL = "nodes";
@@ -266,7 +253,7 @@ document.addEventListener("click", async (e) => {
   const lk = e.target.closest("[data-link]");
   if (lk) { setLink(lk.getAttribute("data-link")); return; }
   const fl = e.target.closest("[data-file]");
-  if (fl) { pickFile(fl.getAttribute("data-file")); return; }
+  if (fl) { setFile(fl.getAttribute("data-file")); return; }
 
   const rn = e.target.closest("[data-rename]");
   if (rn) {
